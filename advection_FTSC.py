@@ -1,0 +1,108 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+class myGrid():
+    """ a finite differnece grid"""
+
+    # constructor method for myGrid class
+    def __init__(self, nx, ng=1,xmin=0, xmax=1):
+        #create a grid with nx nodes and ng ghost nodes on each side
+        #domain ranges from [xmin, xmax]
+        #nx = total number of physical grid points
+        #ng = no. of ghost nodes on each side
+
+        self.xmin = xmin                 #initialization as well as value assignment
+        self.xmax = xmax
+        self.ng = ng
+        self.nx = nx
+
+        #making indices for finding physical grid
+
+        self.ibegin = ng
+        self.iend = nx+ng-1
+
+        #physical grid points
+        self.dx = (xmax - xmin)/ (nx-1)
+        self.xcoords = xmin + (np.arange(nx+2*ng)-ng)*self.dx
+
+        #array for storing solution
+        self.u = np.zeros((self.nx+2*self.ng),dtype = np.float64)
+        self.uinit = np.zeros((self.nx+2*self.ng),dtype = np.float64)
+
+    def array_memory_allocator(self):
+        #allocate memory for an arbitrary array having same dimension as the grid
+        return np.zeros((self.nx+2*self.ng),dtype = np.float64)
+
+        
+    def apply_BCs(self):
+        #updating the single ghost node with periodic BCs
+
+        self.u[self.ibegin -1] = self.u[self.iend -1]   # (-1) = (N-2)  left ghost node 
+        self.u[self.iend+1] = self.u[self.ibegin +1]   # (nx+ng) = (ng+1) or N+1 = 1  right ghost node
+
+def advance_FTCS(nx, c, Co, num_periods = 1.0, init_cond = None):
+    #solve 1-D linear advection using FTCS
+    #Inputs: pass a function f(g), where g is grid object, that sets up the initial condition
+
+    #creating grid object using myGrid Class
+    g= myGrid(nx)
+        
+    #computing the time step, dt
+
+    dt = (Co*g.dx)/c
+    t_start = 0.0
+    t_max = num_periods*(g.xmax - g.xmin)/np.abs(c)        #time = distance/speed
+    t_current = t_start
+
+    #initialize the data
+    init_cond(g)
+    g.uinit[:] = g.u[:]  #copy the initial condition to uinit
+
+    #Time integration
+    u_new = g.array_memory_allocator()
+
+    while t_current<t_max:
+        if t_current +dt >t_max:
+            dt = t_max - t_current
+            Co = c*dt/g.dx
+
+        #apply BCs
+        g.apply_BCs()
+
+        #FTCS Update
+        for i in range(g.ibegin,g.iend+1):
+            u_new[i] = g.u[i] - 0.5*Co*(g.u[i+1]-g.u[i-1])
+        
+        g.u[:] = u_new[:]
+
+        t_current += dt
+
+    return g
+
+#function to initialize the state of u
+#Hat function
+
+def hat(g):
+    g.u[:]= 0.0
+    g.u[np.logical_and(g.xcoords >= 1./3 , g.xcoords <= 2./3)] = 1.0
+
+def plot(g):
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    
+    ax.plot(g.xcoords[g.ibegin:g.iend+1], g.uinit[g.ibegin:g.iend+1], label = 'Init Cond')
+    ax.plot(g.xcoords[g.ibegin:g.iend+1], g.u[g.ibegin:g.iend+1])
+
+    ax.legend()
+    plt.show()
+
+nx = 256
+c= 1.0
+Co = 0.1
+
+g=advance_FTCS(nx,c,Co, num_periods=0.1, init_cond=hat)
+plot(g)
+
+
+
+    
